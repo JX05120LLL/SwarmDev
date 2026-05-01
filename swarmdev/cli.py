@@ -295,6 +295,123 @@ def cmd_status(args: argparse.Namespace) -> None:
         print("⚠️  Some components are missing. Fix the issues above.")
 
 
+async def _run_chat(config: SwarmDevConfig) -> None:
+    """Interactive chat mode: type requirements, get results."""
+    from swarmdev.agents.codex_adapter import CodexAgentAdapter
+    from swarmdev.orchestrator.decomposer import LLMDecomposer
+    from swarmdev.orchestrator.parallel_scheduler import ParallelScheduler
+
+    decomposer = LLMDecomposer(config.llm)
+    agents = [CodexAgentAdapter(ac.name) for ac in config.agents if ac.agent_type == "codex" and ac.enabled]
+    if not agents:
+        agents = [CodexAgentAdapter("codex")]
+
+    print("🤖 SwarmDev 已启动，输入需求开始对话 (输入 quit 退出)")
+    print(f"   LLM: {config.llm.provider}/{config.llm.model}")
+    print(f"   Agent: {', '.join(a.info.name for a in agents)}")
+    print(f"   最大并行: {config.max_concurrent_agents}")
+    print()
+
+    while True:
+        try:
+            user_input = input("> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n👋 再见！")
+            break
+
+        if not user_input:
+            continue
+        if user_input.lower() in ("quit", "exit", "q"):
+            print("👋 再见！")
+            break
+
+        # Step 1: Decompose
+        print("\n🔄 正在拆解任务...")
+        try:
+            result = await decomposer.decompose(user_input)
+        except Exception as exc:
+            print(f"❌ 任务拆解失败: {exc}\n")
+            continue
+
+        if not result.sub_tasks:
+            print("⚠️  没有拆解出子任务，请重新描述需求。\n")
+            continue
+
+        # Show sub-tasks
+        print(f"\n📋 已拆解为 {len(result.sub_tasks)} 个子任务:")
+        for i, st in enumerate(result.sub_tasks):
+            deps = f" (依赖: {st.dependencies})" if st.dependencies else ""
+            print(f"  {i+1}. {st.title} [{st.estimated_complexity}]{deps}")
+
+        # Ask for confirmation
+        try:
+            confirm = input("\n要开始执行吗？(y/n) ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\n👋 再见！")
+            break
+
+        if confirm not in ("y", "yes", ""):
+            print("⏭️  跳过。\n")
+            continue
+
+        # Step 2: Submit and run
+        scheduler = ParallelScheduler(agents, max_concurrent=config.max_concurrent_agents)
+        scheduler.submit_tasks(result)
+
+        progress_lines: list[str] = []
+
+        def on_progress(update: ProgressUpdate) -> None:
+            # Clear and redraw progress
+            if progress_lines:
+                print(f"\033[{len(progress_lines)}A", end="")  # move cursor up
+            progress_lines.clear()
+            for ts in update.tasks_status:
+                status = ts.get("status", "")
+                icon = {"completed": "✅", "running": "🔄", "failed": "❌", "cancelled": "🚫", "pending": "⏳", "ready": "⏳"}.get(status, "❓")
+                line = f"  {icon} {ts.get('title', '?')}"
+                progress_lines.append(line)
+                print(f"\033[2K{line}")  # clear line and print
+
+        scheduler.set_progress_callback(on_progress)
+
+        print(f"\n⏳ 执行中 (最多 {config.max_concurrent_agents} 个并行)...\n")
+        # Print initial progress lines
+        for _ in scheduler._tasks:
+            print("  ⏳ 等待中...")
+
+        results = await scheduler.run()
+
+        # Step 3: Report
+        succeeded = sum(1 for r in results if r.success)
+        failed = sum(1 for r in results if not r.success)
+        total = len(results)
+
+        print(f"\n{'='*40}")
+        if failed:
+            print(f"✅ 完成 {succeeded}/{total}，❌ 失败 {failed}")
+            for r in results:
+                if not r.success:
+                    print(f"  - {r.error or 'unknown error'}")
+        else:
+            print(f"✅ 全部完成！{succeeded}/{total} 个任务")
+        print()
+
+
+def cmd_chat(args: argparse.Namespace) -> None:
+    """Start interactive chat mode."""
+    config_path = Path(args.config)
+    config = SwarmDevConfig.load(config_path)
+
+    log_level = getattr(logging, config.log_level.upper(), logging.WARNING)
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    asyncio.run(_run_chat(config))
+
+
 def main() -> None:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -308,6 +425,11 @@ def main() -> None:
     p_run.add_argument("request", help="Task description in natural language")
     p_run.add_argument("-c", "--config", default="swarmdev.yaml", help="Config file path")
     p_run.set_defaults(func=cmd_run)
+
+    # chat
+    p_chat = subparsers.add_parser("chat", help="Start interactive chat mode")
+    p_chat.add_argument("-c", "--config", default="swarmdev.yaml", help="Config file path")
+    p_chat.set_defaults(func=cmd_chat)
 
     # serve
     p_serve = subparsers.add_parser("serve", help="Start the SwarmDev server")
