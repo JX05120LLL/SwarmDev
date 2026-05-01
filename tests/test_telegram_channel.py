@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from swarmdev.channels.telegram_channel import TelegramChannel
-from swarmdev.core.types import ChatMessage, ProgressUpdate
+from codeswarm.channels.telegram_channel import TelegramChannel
+from codeswarm.core.types import ChatMessage, ProgressUpdate
 
 
 # ============================================================

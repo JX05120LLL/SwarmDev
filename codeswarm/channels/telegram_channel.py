@@ -11,7 +11,7 @@ from telegram import Update
 from telegram.error import TelegramError
 from telegram.ext import Application, ApplicationBuilder, ContextTypes, MessageHandler, filters
 
-from swarmdev.core.types import ChatMessage, ProgressUpdate
+from codeswarm.core.types import ChatMessage, ProgressUpdate
 
 logger = logging.getLogger(__name__)
 

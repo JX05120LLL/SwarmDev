@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 
-from swarmdev.core.types import AgentAdapter, ProgressUpdate, Task, TaskResult, TaskStatus
-from swarmdev.orchestrator.scheduler import TaskScheduler
+from codeswarm.core.types import AgentAdapter, ProgressUpdate, Task, TaskResult, TaskStatus
+from codeswarm.orchestrator.scheduler import TaskScheduler
 
 
 class ParallelScheduler(TaskScheduler):

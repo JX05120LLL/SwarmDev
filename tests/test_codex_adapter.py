@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from swarmdev.agents.codex_adapter import CodexAgentAdapter
-from swarmdev.core.types import Task, TaskResult
+from codeswarm.agents.codex_adapter import CodexAgentAdapter
+from codeswarm.core.types import Task, TaskResult
 
 
 # ============================================================
@@ -115,7 +115,7 @@ class TestExecute:
 
         with (
             patch("asyncio.create_subprocess_exec", return_value=mock_process),
-            patch("swarmdev.agents.codex_adapter.DEFAULT_TASK_TIMEOUT_SECONDS", 0.01),
+            patch("codeswarm.agents.codex_adapter.DEFAULT_TASK_TIMEOUT_SECONDS", 0.01),
         ):
             result = await adapter.execute(task, workdir="/tmp")
 

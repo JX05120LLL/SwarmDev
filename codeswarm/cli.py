@@ -1,4 +1,4 @@
-"""SwarmDev CLI - command-line interface."""
+"""CodeSwarm CLI - command-line interface."""
 
 from __future__ import annotations
 
@@ -9,23 +9,23 @@ import signal
 import sys
 from pathlib import Path
 
-from swarmdev.core.config import SwarmDevConfig
-from swarmdev.core.types import (
+from codeswarm.core.config import CodeSwarmConfig
+from codeswarm.core.types import (
     ChatMessage,
     MessageType,
     ProgressUpdate,
     TaskStatus,
 )
 
-logger = logging.getLogger("swarmdev")
+logger = logging.getLogger("codeswarm")
 
 
-async def _run_server(config: SwarmDevConfig) -> None:
-    """Run the SwarmDev server: Telegram → decompose → schedule → reply."""
-    from swarmdev.agents.codex_adapter import CodexAgentAdapter
-    from swarmdev.channels.telegram_channel import TelegramChannel
-    from swarmdev.orchestrator.decomposer import LLMDecomposer
-    from swarmdev.orchestrator.parallel_scheduler import ParallelScheduler
+async def _run_server(config: CodeSwarmConfig) -> None:
+    """Run the CodeSwarm server: Telegram → decompose → schedule → reply."""
+    from codeswarm.agents.codex_adapter import CodexAgentAdapter
+    from codeswarm.channels.telegram_channel import TelegramChannel
+    from codeswarm.orchestrator.decomposer import LLMDecomposer
+    from codeswarm.orchestrator.parallel_scheduler import ParallelScheduler
 
     # Initialize components
     decomposer = LLMDecomposer(config.llm)
@@ -125,7 +125,7 @@ async def _run_server(config: SwarmDevConfig) -> None:
     channel = TelegramChannel(config.telegram.bot_token, on_message)
     channel_ref = channel
 
-    logger.info("SwarmDev server starting...")
+    logger.info("CodeSwarm server starting...")
     logger.info("Telegram bot: %s", "configured" if config.telegram.bot_token else "NOT configured")
     logger.info("LLM: %s/%s", config.llm.provider, config.llm.model)
     logger.info("Agents: %s", ", ".join(a.name for a in agents))
@@ -152,11 +152,11 @@ async def _run_server(config: SwarmDevConfig) -> None:
         logger.info("Server stopped.")
 
 
-async def _run_single_task(config: SwarmDevConfig, request: str) -> None:
+async def _run_single_task(config: CodeSwarmConfig, request: str) -> None:
     """Run a single task from the command line (no Telegram needed)."""
-    from swarmdev.agents.codex_adapter import CodexAgentAdapter
-    from swarmdev.orchestrator.decomposer import LLMDecomposer
-    from swarmdev.orchestrator.parallel_scheduler import ParallelScheduler
+    from codeswarm.agents.codex_adapter import CodexAgentAdapter
+    from codeswarm.orchestrator.decomposer import LLMDecomposer
+    from codeswarm.orchestrator.parallel_scheduler import ParallelScheduler
 
     decomposer = LLMDecomposer(config.llm)
     agents = [CodexAgentAdapter(ac.name) for ac in config.agents if ac.agent_type == "codex" and ac.enabled]
@@ -222,7 +222,7 @@ async def _run_single_task(config: SwarmDevConfig, request: str) -> None:
 def cmd_run(args: argparse.Namespace) -> None:
     """Run a single task from the command line."""
     config_path = Path(args.config)
-    config = SwarmDevConfig.load(config_path)
+    config = CodeSwarmConfig.load(config_path)
 
     log_level = getattr(logging, config.log_level.upper(), logging.INFO)
     logging.basicConfig(
@@ -235,9 +235,9 @@ def cmd_run(args: argparse.Namespace) -> None:
 
 
 def cmd_serve(args: argparse.Namespace) -> None:
-    """Start the SwarmDev server."""
+    """Start the CodeSwarm server."""
     config_path = Path(args.config)
-    config = SwarmDevConfig.load(config_path)
+    config = CodeSwarmConfig.load(config_path)
 
     log_level = getattr(logging, config.log_level.upper(), logging.INFO)
     logging.basicConfig(
@@ -256,11 +256,11 @@ def cmd_init(args: argparse.Namespace) -> None:
         print(f"❌ {config_path} already exists. Use --force to overwrite.")
         sys.exit(1)
 
-    config = SwarmDevConfig()
+    config = CodeSwarmConfig()
     config.save(config_path)
     print(f"✅ Created {config_path}")
     print("   Edit it with your Telegram bot token, LLM API key, and agent settings.")
-    print("   Then run: swarmdev serve")
+    print("   Then run: codeswarm serve")
 
 
 def cmd_status(args: argparse.Namespace) -> None:
@@ -268,9 +268,9 @@ def cmd_status(args: argparse.Namespace) -> None:
     import shutil
 
     config_path = Path(args.config)
-    config = SwarmDevConfig.load(config_path)
+    config = CodeSwarmConfig.load(config_path)
 
-    print("SwarmDev Status")
+    print("CodeSwarm Status")
     print("=" * 40)
 
     # Telegram
@@ -290,23 +290,23 @@ def cmd_status(args: argparse.Namespace) -> None:
 
     print()
     if tg_ok and llm_ok and codex_ok:
-        print("🚀 All components ready! Run: swarmdev serve")
+        print("🚀 All components ready! Run: codeswarm serve")
     else:
         print("⚠️  Some components are missing. Fix the issues above.")
 
 
-async def _run_chat(config: SwarmDevConfig) -> None:
+async def _run_chat(config: CodeSwarmConfig) -> None:
     """Interactive chat mode: type requirements, get results."""
-    from swarmdev.agents.codex_adapter import CodexAgentAdapter
-    from swarmdev.orchestrator.decomposer import LLMDecomposer
-    from swarmdev.orchestrator.parallel_scheduler import ParallelScheduler
+    from codeswarm.agents.codex_adapter import CodexAgentAdapter
+    from codeswarm.orchestrator.decomposer import LLMDecomposer
+    from codeswarm.orchestrator.parallel_scheduler import ParallelScheduler
 
     decomposer = LLMDecomposer(config.llm)
     agents = [CodexAgentAdapter(ac.name) for ac in config.agents if ac.agent_type == "codex" and ac.enabled]
     if not agents:
         agents = [CodexAgentAdapter("codex")]
 
-    print("🤖 SwarmDev 已启动，输入需求开始对话 (输入 quit 退出)")
+    print("🤖 CodeSwarm 已启动，输入需求开始对话 (输入 quit 退出)")
     print(f"   LLM: {config.llm.provider}/{config.llm.model}")
     print(f"   Agent: {', '.join(a.info.name for a in agents)}")
     print(f"   最大并行: {config.max_concurrent_agents}")
@@ -397,10 +397,16 @@ async def _run_chat(config: SwarmDevConfig) -> None:
         print()
 
 
+def cmd_mcp_server(args: argparse.Namespace) -> None:
+    """Start the MCP server (stdio transport)."""
+    from codeswarm.mcp_server import main
+    main()
+
+
 def cmd_chat(args: argparse.Namespace) -> None:
     """Start interactive chat mode."""
     config_path = Path(args.config)
-    config = SwarmDevConfig.load(config_path)
+    config = CodeSwarmConfig.load(config_path)
 
     log_level = getattr(logging, config.log_level.upper(), logging.WARNING)
     logging.basicConfig(
@@ -415,37 +421,43 @@ def cmd_chat(args: argparse.Namespace) -> None:
 def main() -> None:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        prog="swarmdev",
-        description="SwarmDev — Chat-driven multi-agent collaboration development platform",
+        prog="codeswarm",
+        description="CodeSwarm — Chat-driven multi-agent collaboration development platform",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # run
     p_run = subparsers.add_parser("run", help="Run a single task from the command line")
     p_run.add_argument("request", help="Task description in natural language")
-    p_run.add_argument("-c", "--config", default="swarmdev.yaml", help="Config file path")
+    p_run.add_argument("-c", "--config", default="codeswarm.yaml", help="Config file path")
     p_run.set_defaults(func=cmd_run)
 
     # chat
     p_chat = subparsers.add_parser("chat", help="Start interactive chat mode")
-    p_chat.add_argument("-c", "--config", default="swarmdev.yaml", help="Config file path")
+    p_chat.add_argument("-c", "--config", default="codeswarm.yaml", help="Config file path")
     p_chat.set_defaults(func=cmd_chat)
 
     # serve
-    p_serve = subparsers.add_parser("serve", help="Start the SwarmDev server")
-    p_serve.add_argument("-c", "--config", default="swarmdev.yaml", help="Config file path")
+    p_serve = subparsers.add_parser("serve", help="Start the CodeSwarm server")
+    p_serve.add_argument("-c", "--config", default="codeswarm.yaml", help="Config file path")
     p_serve.set_defaults(func=cmd_serve)
 
     # init
     p_init = subparsers.add_parser("init", help="Generate a sample config file")
-    p_init.add_argument("-o", "--output", default="swarmdev.yaml", help="Output file path")
+    p_init.add_argument("-o", "--output", default="codeswarm.yaml", help="Output file path")
     p_init.add_argument("--force", action="store_true", help="Overwrite existing file")
     p_init.set_defaults(func=cmd_init)
 
     # status
     p_status = subparsers.add_parser("status", help="Check component status")
-    p_status.add_argument("-c", "--config", default="swarmdev.yaml", help="Config file path")
+    p_status.add_argument("-c", "--config", default="codeswarm.yaml", help="Config file path")
     p_status.set_defaults(func=cmd_status)
+
+    # mcp-server
+    p_mcp = subparsers.add_parser(
+        "mcp-server", help="Start the MCP server (stdio transport)"
+    )
+    p_mcp.set_defaults(func=cmd_mcp_server)
 
     args = parser.parse_args()
     if not args.command:

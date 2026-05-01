@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from swarmdev.core.config import LLMConfig
-from swarmdev.core.types import (
+from codeswarm.core.config import LLMConfig
+from codeswarm.core.types import (
     AgentAdapter,
     AgentInfo,
     ChatMessage,
@@ -22,8 +22,8 @@ from swarmdev.core.types import (
     TaskResult,
     TaskStatus,
 )
-from swarmdev.orchestrator.decomposer import LLMDecomposer
-from swarmdev.orchestrator.parallel_scheduler import ParallelScheduler
+from codeswarm.orchestrator.decomposer import LLMDecomposer
+from codeswarm.orchestrator.parallel_scheduler import ParallelScheduler
 
 
 ExecuteFn = Callable[[Task, str], Awaitable[TaskResult]]
@@ -153,7 +153,7 @@ class TestEndToEndPipeline:
         scheduler = ParallelScheduler([agent])
         scheduler.set_progress_callback(progress_updates.append)
 
-        with patch("swarmdev.orchestrator.decomposer.AsyncOpenAI", return_value=client) as mock_openai:
+        with patch("codeswarm.orchestrator.decomposer.AsyncOpenAI", return_value=client) as mock_openai:
             decomposition = await decomposer.decompose(
                 chat_message.text,
                 project_context=chat_message.metadata["project_context"],
@@ -252,7 +252,7 @@ class TestEndToEndPipeline:
         decomposer = LLMDecomposer(config, max_retries=0)
         scheduler = ParallelScheduler([agent_a, agent_b], max_concurrent=2)
 
-        with patch("swarmdev.orchestrator.decomposer.AsyncOpenAI", return_value=client):
+        with patch("codeswarm.orchestrator.decomposer.AsyncOpenAI", return_value=client):
             decomposition = await decomposer.decompose(chat_message.text)
 
         scheduler.submit_tasks(decomposition)
@@ -291,7 +291,7 @@ class TestErrorPaths:
         decomposer = LLMDecomposer(config, max_retries=0)
         scheduler = ParallelScheduler([agent])
 
-        with patch("swarmdev.orchestrator.decomposer.AsyncOpenAI", return_value=client):
+        with patch("codeswarm.orchestrator.decomposer.AsyncOpenAI", return_value=client):
             decomposition = await decomposer.decompose(chat_message.text)
 
         scheduler.submit_tasks(decomposition)
@@ -348,7 +348,7 @@ class TestErrorPaths:
         decomposer = LLMDecomposer(config, max_retries=0)
         scheduler = ParallelScheduler([agent])
 
-        with patch("swarmdev.orchestrator.decomposer.AsyncOpenAI", return_value=client):
+        with patch("codeswarm.orchestrator.decomposer.AsyncOpenAI", return_value=client):
             decomposition = await decomposer.decompose(chat_message.text)
 
         scheduler.submit_tasks(decomposition)
@@ -413,7 +413,7 @@ class TestErrorPaths:
         decomposer = LLMDecomposer(config, max_retries=0)
         scheduler = ParallelScheduler([agent], max_concurrent=2)
 
-        with patch("swarmdev.orchestrator.decomposer.AsyncOpenAI", return_value=client):
+        with patch("codeswarm.orchestrator.decomposer.AsyncOpenAI", return_value=client):
             decomposition = await decomposer.decompose(chat_message.text)
 
         scheduler.submit_tasks(decomposition)

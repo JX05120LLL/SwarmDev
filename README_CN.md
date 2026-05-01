@@ -1,79 +1,224 @@
-# SwarmDev
+# CodeSwarm
 
-[English](README.md) | 中文
+**多智能体并行代码生成，基于 MCP 协议编排。**
 
-聊天驱动的多 Agent 协作开发平台。
+[English](README.md)
 
-通过 Telegram、微信、飞书等即时通讯工具下达开发需求，SwarmDev 自动将需求拆解为子任务，分配给多个 AI 编程 Agent（Codex、Claude Code 等）并行执行，并实时汇报进度。
+---
 
-## 架构
+## CodeSwarm 是什么？
+
+CodeSwarm 是一个 MCP 服务器，可以编排多个 AI 编码智能体并行工作。将它连接到任何兼容 MCP 的工具（Cursor、Claude Desktop、Hermes Agent 等），用自然语言描述你的开发需求，CodeSwarm 会自动将需求拆解为子任务、分配给多个智能体（Codex、Claude Code）并行执行、运行测试并返回结果。
+
+## 工作原理
 
 ```
-┌─────────────────┐     ┌──────────────┐     ┌───────────────┐
-│   Telegram /    │────▶│  Task        │────▶│   Scheduler   │
-│   WeChat / ...  │     │  Decomposer  │     │  (Serial →    │
-└─────────────────┘     │  (LLM)       │     │   Parallel)   │
-                        └──────────────┘     └───────┬───────┘
-                                                     │
-                                             ┌───────▼───────┐
-                                             │  Agent Pool   │
-                                             │  ┌────┬────┐  │
-                                             │  │Codex│Claude│  │
-                                             │  └────┴────┘  │
-                                             └───────────────┘
+你（自然语言描述需求）
+  │
+  ▼
+┌─────────────────────────────────────────┐
+│             CodeSwarm MCP               │
+│                                         │
+│  1. 拆解需求 → 结构化子任务             │
+│  2. 构建依赖 DAG                        │
+│  3. 并行调度子任务                       │
+│  4. 分发给多个智能体并发执行             │
+│  5. 自动测试，失败自动重试               │
+│  6. 返回结果                            │
+│                                         │
+│         ┌───────────┬───────────┐       │
+│         ▼           ▼           ▼       │
+│     ┌───────┐  ┌─────────┐  ┌─────┐   │
+│     │ Codex │  │ Claude  │  │ ... │   │
+│     │       │  │  Code   │  │     │   │
+│     └───────┘  └─────────┘  └─────┘   │
+└─────────────────────────────────────────┘
 ```
 
-### 核心模块
+**流程：** 拆解 → 调度（DAG）→ 并行执行 → 测试 → 重试 → 完成。
 
-| 模块 | 文件 | 说明 |
-|------|------|------|
-| **Telegram 通道** | `swarmdev/channels/telegram_channel.py` | Telegram Bot 适配器，接收消息、发送进度更新 |
-| **任务拆解器** | `swarmdev/orchestrator/decomposer.py` | 基于 LLM 的需求拆解引擎，将自然语言需求分解为结构化子任务 |
-| **任务调度器** | `swarmdev/orchestrator/scheduler.py` | 串行调度器（支持依赖解析、失败重试、级联取消） |
-| **Codex 适配器** | `swarmdev/agents/codex_adapter.py` | 通过 Codex CLI 执行编程任务的适配器 |
-| **核心类型** | `swarmdev/core/types.py` | 全模块共享的类型系统：Task、SubTask、TaskResult 等 |
-| **配置管理** | `swarmdev/core/config.py` | YAML 配置加载、环境变量读取 |
-
-### 核心类型
-
-所有模块共享 `swarmdev/core/types.py` 中定义的类型系统：
-
-- `Task` / `SubTask` / `TaskResult` — 任务单元及其结果
-- `DecompositionResult` — 任务拆解器的输出
-- `ProgressUpdate` — 发送给用户的状态更新
-- `ChatMessage` — 聊天通道的消息
-- `ChannelAdapter` / `AgentAdapter` / `TaskDecomposer` — 协议接口
+---
 
 ## 快速开始
 
-### 安装
+### 1. 安装
 
 ```bash
-# 克隆仓库
-git clone https://github.com/JX05120LLL/SwarmDev.git
-cd SwarmDev
-
-# 安装（开发模式）
-pip install -e ".[dev]"
+pip install codeswarm
 ```
 
-### 配置
+### 2. 配置 MCP 客户端
+
+#### Cursor
+
+在 `.cursor/mcp.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "codeswarm": {
+      "command": "codeswarm",
+      "args": ["mcp-server"],
+      "env": {
+        "OPENAI_API_KEY": "sk-xxx",
+        "CODEX_API_KEY": "sk-xxx"
+      }
+    }
+  }
+}
+```
+
+#### Claude Desktop
+
+在 `claude_desktop_config.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "codeswarm": {
+      "command": "codeswarm",
+      "args": ["mcp-server"],
+      "env": {
+        "OPENAI_API_KEY": "sk-xxx",
+        "CODEX_API_KEY": "sk-xxx"
+      }
+    }
+  }
+}
+```
+
+#### Hermes Agent
+
+在 Hermes 配置中添加：
+
+```yaml
+mcp_servers:
+  codeswarm:
+    command: codeswarm
+    args: [mcp-server]
+    env:
+      OPENAI_API_KEY: sk-xxx
+      CODEX_API_KEY: sk-xxx
+```
+
+### 3. 开始使用
+
+连接后，直接在对话中描述你的需求：
+
+> "给我的 Express API 加上 JWT 用户认证，包括注册、登录和路由保护中间件。"
+
+CodeSwarm 会自动：
+1. **拆解**需求为结构化子任务
+2. **调度**独立任务并行执行
+3. **执行**通过 Codex / Claude Code 智能体
+4. **测试**自动运行测试，失败自动重试
+5. **返回**汇总结果
+
+---
+
+## MCP 工具
+
+CodeSwarm 通过 MCP 协议暴露四个工具：
+
+| 工具 | 说明 |
+|------|------|
+| `decompose_task` | 将自然语言需求拆解为带依赖关系的结构化子任务 |
+| `execute_tasks` | 在多个智能体间并行执行子任务（遵循依赖 DAG） |
+| `auto_test_and_fix` | 对生成的代码运行测试，失败时自动修复并重试 |
+| `full_pipeline` | 端到端：拆解 → 执行 → 测试 → 修复，一次调用完成全部流程 |
+
+### `full_pipeline`（推荐）
+
+最简单的使用方式——描述需求即可获得结果：
+
+```json
+{
+  "tool": "full_pipeline",
+  "arguments": {
+    "requirement": "为我的 Todo 应用添加 REST API，支持增删改查",
+    "project_dir": "/path/to/your/project",
+    "test_command": "python -m pytest"
+  }
+}
+```
+
+### `decompose_task`
+
+仅拆解，不执行：
+
+```json
+{
+  "tool": "decompose_task",
+  "arguments": {
+    "requirement": "给 Express API 添加 JWT 用户认证"
+  }
+}
+```
+
+### `execute_tasks`
+
+执行之前拆解的任务：
+
+```json
+{
+  "tool": "execute_tasks",
+  "arguments": {
+    "tasks": [...],
+    "project_dir": "/path/to/project"
+  }
+}
+```
+
+### `auto_test_and_fix`
+
+运行测试并自动修复：
+
+```json
+{
+  "tool": "auto_test_and_fix",
+  "arguments": {
+    "project_dir": "/path/to/project",
+    "test_command": "python -m pytest",
+    "max_fix_attempts": 3
+  }
+}
+```
+
+---
+
+## 配置
+
+### 环境变量
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `OPENAI_API_KEY` | 用于任务拆解的 LLM API 密钥 | — |
+| `OPENAI_BASE_URL` | 自定义 API 端点（用于 OpenAI 兼容的第三方服务） | — |
+| `LLM_MODEL` | 用于任务拆解的模型名称 | `gpt-4o` |
+| `CODEX_API_KEY` | Codex 智能体的 API 密钥 | — |
+| `CODEX_MODEL` | Codex 智能体使用的模型 | — |
+| `CODESWARM_CONFIG` | 配置文件路径 | `codeswarm.yaml` |
+
+### 配置文件
+
+生成默认配置：
 
 ```bash
-cp swarmdev.example.yaml swarmdev.yaml
-# 编辑 swarmdev.yaml，填入你的 Token
+codeswarm init
 ```
+
+会创建 `codeswarm.yaml`：
 
 ```yaml
 telegram:
-  bot_token: "your-bot-token"        # 或设置环境变量 TELEGRAM_BOT_TOKEN
-  allowed_users: []                   # 空列表 = 允许所有人
+  bot_token: ""
+  allowed_users: []
 
 llm:
   provider: "openai"
   model: "gpt-4o"
-  api_key: "sk-..."                  # 或设置环境变量 OPENAI_API_KEY
-  base_url: ""                       # 自定义 API 端点（可选）
+  api_key: ""
+  base_url: ""
   temperature: 0.3
 
 agents:
@@ -84,73 +229,169 @@ agents:
 project:
   name: "my-project"
   root_dir: "."
+  git_repo: ""
 
 max_concurrent_agents: 3
 task_timeout: 600
 log_level: "INFO"
 ```
 
-### 运行
+---
+
+## CLI 命令
 
 ```bash
-# 启动 Bot
-swarmdev
+# 生成示例配置文件
+codeswarm init
 
-# 或者用 Python 模块方式运行
-python -m swarmdev.cli
+# 交互式对话模式（输入需求，获取结果）
+codeswarm chat
+
+# 从命令行执行单个任务
+codeswarm run "为 API 路由添加错误处理"
+
+# 启动 Telegram 机器人服务器
+codeswarm serve
+
+# 启动 MCP 服务器（用于 MCP 客户端连接）
+codeswarm mcp-server
+
+# 检查组件状态
+codeswarm status
 ```
 
-然后在 Telegram 中给你的 Bot 发消息：
+### 使用示例
 
-> 加一个登录页面，支持邮箱密码登录，带 JWT token 刷新接口
+```bash
+# 快速单次任务
+codeswarm run "创建一个 Python CLI 工具，将 CSV 转换为 JSON"
 
-任务拆解器会自动将需求分解为子任务，调度器分配给可用的 Agent 执行，你会在聊天中收到实时进度更新。
+# 使用自定义配置
+codeswarm run -c my-config.yaml "为认证模块添加单元测试"
+
+# 交互模式
+codeswarm chat
+> 给我的 Express API 添加限流中间件
+> 📋 已拆解为 3 个子任务:
+>   1. 创建限流工具函数 [medium]
+>   2. 添加中间件集成 [low] (依赖: [0])
+>   3. 添加限流测试 [medium] (依赖: [0])
+> 要开始执行吗？(y/n) y
+```
+
+---
+
+## 架构
+
+```
+┌──────────────────────┐
+│     MCP 客户端        │
+│  (Cursor / Claude /   │
+│   Hermes Agent)       │
+└──────────┬───────────┘
+           │ MCP 协议
+           ▼
+┌──────────────────────────────────────────────┐
+│                CodeSwarm                      │
+│                                               │
+│  ┌─────────────┐  ┌───────────────────────┐  │
+│  │  LLM         │  │  编排器                │  │
+│  │  拆解器      │──▶│  并行调度器            │  │
+│  │  (GPT-4o)    │  │  (基于 DAG)            │  │
+│  └─────────────┘  └───────────┬───────────┘  │
+│                               │               │
+│              ┌────────────────┼───────────┐   │
+│              ▼                ▼            ▼   │
+│         ┌────────┐    ┌──────────┐   ┌──────┐ │
+│         │ Codex  │    │ Claude   │   │ 自定义│ │
+│         │ 适配器 │    │ Code     │   │ 智能体│ │
+│         └────────┘    │ 适配器   │   └──────┘ │
+│                       └──────────┘            │
+│                                               │
+│  ┌──────────────────────────────────────────┐ │
+│  │  自动测试器（运行测试 → 修复 → 重试）    │ │
+│  └──────────────────────────────────────────┘ │
+└──────────────────────────────────────────────┘
+```
+
+**核心组件：**
+
+- **LLM 拆解器** — 使用 GPT-4o（或兼容模型）将需求拆解为带依赖关系的结构化子任务
+- **并行调度器** — 基于 DAG 的调度器，独立任务并发执行，并行度可配置
+- **智能体适配器** — 可插拔的编码智能体适配器（Codex、Claude Code 或自定义）
+- **自动测试器** — 代码生成后自动运行测试，失败时自动反馈给智能体修复
+
+---
+
+## 项目结构
+
+```
+codeswarm/
+├── __init__.py
+├── cli.py                          # CLI 入口
+├── core/
+│   ├── __init__.py
+│   ├── config.py                   # 配置管理
+│   └── types.py                    # 核心类型定义与协议
+├── agents/
+│   ├── __init__.py
+│   ├── codex_adapter.py            # Codex CLI 智能体适配器
+│   └── claude_code_adapter.py      # Claude Code CLI 智能体适配器
+├── orchestrator/
+│   ├── __init__.py
+│   ├── scheduler.py                # 基础任务调度器
+│   ├── parallel_scheduler.py       # 基于 DAG 的并行调度器
+│   ├── decomposer.py               # LLM 驱动的任务拆解器
+│   └── auto_tester.py              # 自动测试与重试逻辑
+├── channels/
+│   ├── __init__.py
+│   └── telegram_channel.py         # Telegram 机器人通道
+codeswarm.example.yaml              # 示例配置文件
+pyproject.toml                      # 项目元数据与依赖
+```
+
+---
 
 ## 测试
 
 ```bash
-pytest tests/ -v
+# 安装开发依赖
+pip install -e ".[dev]"
+
+# 运行测试
+pytest
+
+# 运行并查看覆盖率
+pytest --cov=codeswarm
+
+# 代码检查
+ruff check .
 ```
 
-59 个测试用例，覆盖：
-
-- **任务拆解器** — 正常路径、边界情况（空消息/乱码/带围栏的 JSON）、依赖归一化、重试/降级、字段强制转换
-- **调度器** — 基础调度、依赖排序、失败/重试、依赖级联取消、Agent 轮转、进度上报
-- **Telegram** — 消息分割、进度格式化、消息处理、错误处理
-- **Codex 适配器** — 健康检查、执行成功/失败、超时、CLI 未找到
-
-## 项目状态
-
-**v0.1.0** — 核心管线已跑通。
-
-### 当前限制
-
-- **仅串行执行** — 调度器一次处理一个任务，并行执行已规划但尚未实现
-- **单一 Agent 类型** — 目前仅实现 Codex 适配器，Claude Code 和 OpenClaw 适配器规划中
-- **无鉴权** — Telegram `allowed_users` 配置项已存在但尚未强制执行
+---
 
 ## 路线图
 
-- [ ] 并行调度器（基于依赖图的并行执行）
-- [ ] Claude Code 适配器
-- [ ] OpenClaw 适配器
-- [ ] 微信通道
-- [ ] 飞书通道
-- [ ] Web Dashboard
-- [ ] 用户鉴权
-- [ ] 任务持久化（SQLite）
+- [x] LLM 驱动的任务拆解
+- [x] 基于 DAG 的并行调度
+- [x] Codex 智能体适配器
+- [x] Claude Code 智能体适配器
+- [x] 自动测试与重试
+- [x] MCP 服务器集成
+- [ ] 流式进度更新
+- [ ] Web UI 仪表盘
+- [ ] 更多智能体适配器（Aider、Continue 等）
+- [ ] 任务依赖可视化
+- [ ] 项目感知上下文注入
+- [ ] Git 集成（每个任务自动创建分支）
+- [ ] 成本追踪与预算限制
 
-## 开发背景
+---
 
-这个项目的灵感来自实际使用多个 AI 编程工具的经验：
-
-- **Hermes Agent** 擅长任务协调和工具调用
-- **OpenClaw (Zero)** 擅长架构设计和技术决策
-- **Codex CLI** 擅长并行编写高质量代码
-- **Claude Code** 擅长深度代码理解和重构
-
-SwarmDev 的目标是让这些 Agent 真正协作起来，而不是各自为战。通过聊天界面下达需求，由专门的协调 Agent 拆解任务、分配执行、汇总结果，实现 **1+1>2** 的效果。
-
-## License
+## 许可证
 
 MIT
+
+---
+
+> **CodeSwarm** — 让智能体并行工作，更快交付。

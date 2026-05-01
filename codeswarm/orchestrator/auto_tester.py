@@ -7,7 +7,7 @@ import re
 import time
 from dataclasses import dataclass
 
-from swarmdev.core.types import AgentAdapter, Task, TaskResult
+from codeswarm.core.types import AgentAdapter, Task, TaskResult
 
 
 @dataclass

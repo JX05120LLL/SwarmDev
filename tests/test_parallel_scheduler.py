@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from swarmdev.core.types import (
+from codeswarm.core.types import (
     AgentAdapter,
     AgentInfo,
     DecompositionResult,
@@ -20,7 +20,7 @@ from swarmdev.core.types import (
     TaskResult,
     TaskStatus,
 )
-from swarmdev.orchestrator.parallel_scheduler import ParallelScheduler
+from codeswarm.orchestrator.parallel_scheduler import ParallelScheduler
 
 
 # ============================================================

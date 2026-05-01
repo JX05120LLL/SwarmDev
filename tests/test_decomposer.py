@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from swarmdev.core.config import LLMConfig
-from swarmdev.core.types import DecompositionResult, SubTask
-from swarmdev.orchestrator.decomposer import LLMDecomposer
+from codeswarm.core.config import LLMConfig
+from codeswarm.core.types import DecompositionResult, SubTask
+from codeswarm.orchestrator.decomposer import LLMDecomposer
 
 
 # ============================================================

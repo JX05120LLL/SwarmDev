@@ -1,4 +1,4 @@
-"""Configuration management for SwarmDev."""
+"""Configuration management for CodeSwarm."""
 
 from __future__ import annotations
 
@@ -39,13 +39,13 @@ class AgentConfig:
 @dataclass
 class ProjectConfig:
     """Project-level configuration."""
-    name: str = "swarmdev-project"
+    name: str = "codeswarm-project"
     root_dir: str = "."
     git_repo: str = ""              # git remote URL, empty = local only
 
 
 @dataclass
-class SwarmDevConfig:
+class CodeSwarmConfig:
     """Top-level configuration."""
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
@@ -56,7 +56,7 @@ class SwarmDevConfig:
     log_level: str = "INFO"
 
     @classmethod
-    def load(cls, path: str | Path = "swarmdev.yaml") -> SwarmDevConfig:
+    def load(cls, path: str | Path = "codeswarm.yaml") -> CodeSwarmConfig:
         """Load config from a YAML file."""
         path = Path(path)
         if not path.exists():
@@ -96,7 +96,7 @@ class SwarmDevConfig:
         # Project
         if proj := data.get("project"):
             config.project = ProjectConfig(
-                name=proj.get("name", "swarmdev-project"),
+                name=proj.get("name", "codeswarm-project"),
                 root_dir=proj.get("root_dir", "."),
                 git_repo=proj.get("git_repo", ""),
             )
@@ -107,7 +107,7 @@ class SwarmDevConfig:
 
         return config
 
-    def save(self, path: str | Path = "swarmdev.yaml") -> None:
+    def save(self, path: str | Path = "codeswarm.yaml") -> None:
         """Save config to a YAML file."""
         data = {
             "telegram": {

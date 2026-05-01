@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from swarmdev.core.types import (
+from codeswarm.core.types import (
     AgentAdapter,
     DecompositionResult,
     ProgressUpdate,

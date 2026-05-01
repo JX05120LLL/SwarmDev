@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from swarmdev.core.types import AgentAdapter, Task, TaskResult
-from swarmdev.orchestrator.auto_tester import AutoTester, TestResult
+from codeswarm.core.types import AgentAdapter, Task, TaskResult
+from codeswarm.orchestrator.auto_tester import AutoTester, TestResult
 
 
 # ============================================================
@@ -86,7 +86,7 @@ class TestRunTests:
         tester = AutoTester()
 
         with patch(
-            "swarmdev.orchestrator.auto_tester.asyncio.create_subprocess_shell",
+            "codeswarm.orchestrator.auto_tester.asyncio.create_subprocess_shell",
             new_callable=AsyncMock,
             return_value=process,
         ):
@@ -118,7 +118,7 @@ class TestRunTests:
         tester = AutoTester()
 
         with patch(
-            "swarmdev.orchestrator.auto_tester.asyncio.create_subprocess_shell",
+            "codeswarm.orchestrator.auto_tester.asyncio.create_subprocess_shell",
             new_callable=AsyncMock,
             return_value=process,
         ):
@@ -140,11 +140,11 @@ class TestRunTests:
             await asyncio.sleep(999)
 
         with patch(
-            "swarmdev.orchestrator.auto_tester.asyncio.create_subprocess_shell",
+            "codeswarm.orchestrator.auto_tester.asyncio.create_subprocess_shell",
             new_callable=AsyncMock,
             return_value=process,
         ), patch(
-            "swarmdev.orchestrator.auto_tester.asyncio.wait_for",
+            "codeswarm.orchestrator.auto_tester.asyncio.wait_for",
             new_callable=AsyncMock,
             side_effect=asyncio.TimeoutError,
         ):
@@ -166,7 +166,7 @@ class TestRunTests:
         tester = AutoTester()
 
         with patch(
-            "swarmdev.orchestrator.auto_tester.asyncio.create_subprocess_shell",
+            "codeswarm.orchestrator.auto_tester.asyncio.create_subprocess_shell",
             new_callable=AsyncMock,
             return_value=process,
         ):
@@ -203,7 +203,7 @@ class TestAutoTestAndFix:
         task = _make_task()
 
         with patch(
-            "swarmdev.orchestrator.auto_tester.asyncio.create_subprocess_shell",
+            "codeswarm.orchestrator.auto_tester.asyncio.create_subprocess_shell",
             new_callable=AsyncMock,
             return_value=process,
         ):
@@ -250,7 +250,7 @@ class TestAutoTestAndFix:
             return pass_process
 
         with patch(
-            "swarmdev.orchestrator.auto_tester.asyncio.create_subprocess_shell",
+            "codeswarm.orchestrator.auto_tester.asyncio.create_subprocess_shell",
             side_effect=mock_subprocess,
         ):
             result = await tester.auto_test_and_fix(task, agent, "/tmp/workdir", "")
@@ -278,7 +278,7 @@ class TestAutoTestAndFix:
         task = _make_task()
 
         with patch(
-            "swarmdev.orchestrator.auto_tester.asyncio.create_subprocess_shell",
+            "codeswarm.orchestrator.auto_tester.asyncio.create_subprocess_shell",
             new_callable=AsyncMock,
             return_value=fail_process,
         ):
@@ -304,7 +304,7 @@ class TestAutoTestAndFix:
         task = _make_task()
 
         with patch(
-            "swarmdev.orchestrator.auto_tester.asyncio.create_subprocess_shell",
+            "codeswarm.orchestrator.auto_tester.asyncio.create_subprocess_shell",
             new_callable=AsyncMock,
         ) as mock_subprocess:
             result = await tester.auto_test_and_fix(task, agent, "/tmp/workdir", "")
@@ -341,7 +341,7 @@ class TestAutoTestAndFix:
         task = _make_task(title="Build widget")
 
         with patch(
-            "swarmdev.orchestrator.auto_tester.asyncio.create_subprocess_shell",
+            "codeswarm.orchestrator.auto_tester.asyncio.create_subprocess_shell",
             new_callable=AsyncMock,
             return_value=fail_process,
         ):

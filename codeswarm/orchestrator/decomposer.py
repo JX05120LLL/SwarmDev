@@ -8,8 +8,8 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-from swarmdev.core.config import LLMConfig
-from swarmdev.core.types import DecompositionResult, SubTask, TaskDecomposer
+from codeswarm.core.config import LLMConfig
+from codeswarm.core.types import DecompositionResult, SubTask, TaskDecomposer
 
 logger = logging.getLogger(__name__)
 

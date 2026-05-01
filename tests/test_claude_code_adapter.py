@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from swarmdev.agents.claude_code_adapter import ClaudeCodeAgentAdapter
-from swarmdev.core.types import Task
+from codeswarm.agents.claude_code_adapter import ClaudeCodeAgentAdapter
+from codeswarm.core.types import Task
 
 
 # ============================================================
@@ -132,7 +132,7 @@ class TestExecute:
         with (
             patch("asyncio.create_subprocess_exec", return_value=mock_process),
             patch(
-                "swarmdev.agents.claude_code_adapter.DEFAULT_TASK_TIMEOUT_SECONDS",
+                "codeswarm.agents.claude_code_adapter.DEFAULT_TASK_TIMEOUT_SECONDS",
                 0.01,
             ),
         ):

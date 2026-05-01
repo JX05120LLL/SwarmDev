@@ -6,8 +6,8 @@ import asyncio
 import shutil
 import time
 
-from swarmdev.core.types import AgentAdapter, AgentInfo, Task, TaskResult
-from swarmdev.core.types import DEFAULT_TASK_TIMEOUT_SECONDS
+from codeswarm.core.types import AgentAdapter, AgentInfo, Task, TaskResult
+from codeswarm.core.types import DEFAULT_TASK_TIMEOUT_SECONDS
 
 
 class ClaudeCodeAgentAdapter(AgentAdapter):
