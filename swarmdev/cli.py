@@ -1,0 +1,249 @@
+"""SwarmDev CLI - command-line interface."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import logging
+import signal
+import sys
+from pathlib import Path
+
+from swarmdev.core.config import SwarmDevConfig
+from swarmdev.core.types import (
+    ChatMessage,
+    MessageType,
+    ProgressUpdate,
+    TaskStatus,
+)
+
+logger = logging.getLogger("swarmdev")
+
+
+async def _run_server(config: SwarmDevConfig) -> None:
+    """Run the SwarmDev server: Telegram → decompose → schedule → reply."""
+    from swarmdev.agents.codex_adapter import CodexAgentAdapter
+    from swarmdev.channels.telegram_channel import TelegramChannel
+    from swarmdev.orchestrator.decomposer import LLMDecomposer
+    from swarmdev.orchestrator.scheduler import TaskScheduler
+
+    # Initialize components
+    decomposer = LLMDecomposer(config.llm)
+    agents = [CodexAgentAdapter(ac.name) for ac in config.agents if ac.agent_type == "codex" and ac.enabled]
+    if not agents:
+        agents = [CodexAgentAdapter("codex")]
+    scheduler = TaskScheduler(agents)
+
+    # Track active chat for progress updates
+    active_chat: dict[str, str] = {}  # user_id -> chat_id
+    channel_ref: TelegramChannel | None = None
+
+    async def on_message(msg: ChatMessage) -> None:
+        """Handle incoming user message: decompose → schedule → reply."""
+        nonlocal channel_ref
+        chat_id = msg.chat_id
+        active_chat[msg.user_id] = chat_id
+
+        logger.info("Received from %s: %s", msg.user_id, msg.text[:80])
+
+        # Send acknowledgment
+        if channel_ref:
+            await channel_ref.send_message(chat_id, "🔄 收到！正在拆解任务...")
+
+        # Step 1: Decompose
+        try:
+            result = await decomposer.decompose(msg.text)
+        except Exception as exc:
+            logger.error("Decomposition failed: %s", exc)
+            if channel_ref:
+                await channel_ref.send_message(chat_id, f"❌ 任务拆解失败: {exc}")
+            return
+
+        if not result.sub_tasks:
+            if channel_ref:
+                await channel_ref.send_message(chat_id, "⚠️ 没有拆解出子任务，请重新描述需求。")
+            return
+
+        # Notify user about sub-tasks
+        task_list = "\n".join(
+            f"  {i+1}. {st.title}" for i, st in enumerate(result.sub_tasks)
+        )
+        if channel_ref:
+            await channel_ref.send_message(
+                chat_id,
+                f"📋 已拆解为 {len(result.sub_tasks)} 个子任务:\n{task_list}\n\n⏳ 开始执行...",
+            )
+
+        # Step 2: Submit and run
+        scheduler.submit_tasks(result)
+
+        # Send progress updates periodically
+        async def progress_reporter() -> None:
+            while not scheduler._is_finished():
+                await asyncio.sleep(15)
+                prog = scheduler.get_progress()
+                if channel_ref and prog.tasks_status:
+                    lines = []
+                    for ts in prog.tasks_status:
+                        icon = {"completed": "✅", "running": "🔄", "failed": "❌", "pending": "⏳"}.get(
+                            ts.get("status", ""), "❓"
+                        )
+                        lines.append(f"  {icon} {ts.get('title', '?')}")
+                    await channel_ref.send_message(
+                        chat_id, f"📊 进度 ({prog.overall_progress:.0%}):\n" + "\n".join(lines)
+                    )
+
+        reporter_task = asyncio.create_task(progress_reporter())
+
+        try:
+            results = await scheduler.run()
+        finally:
+            reporter_task.cancel()
+            try:
+                await reporter_task
+            except asyncio.CancelledError:
+                pass
+
+        # Step 3: Report results
+        succeeded = sum(1 for r in results if r.success)
+        failed = sum(1 for r in results if not r.success)
+        total = len(results)
+
+        summary_parts = [f"✅ 完成 {succeeded}/{total} 个任务"]
+        if failed:
+            summary_parts.append(f"❌ 失败 {failed} 个")
+            for r in results:
+                if not r.success:
+                    summary_parts.append(f"  - {r.error or 'unknown error'}")
+
+        if channel_ref:
+            await channel_ref.send_message(chat_id, "\n".join(summary_parts))
+
+        logger.info("Task batch done: %d/%d succeeded", succeeded, total)
+
+    # Start Telegram channel
+    channel = TelegramChannel(config.telegram.bot_token, on_message)
+    channel_ref = channel
+
+    logger.info("SwarmDev server starting...")
+    logger.info("Telegram bot: %s", "configured" if config.telegram.bot_token else "NOT configured")
+    logger.info("LLM: %s/%s", config.llm.provider, config.llm.model)
+    logger.info("Agents: %s", ", ".join(a.name for a in agents))
+
+    # Handle graceful shutdown
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+
+    def _signal_handler() -> None:
+        logger.info("Shutdown signal received")
+        stop_event.set()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, _signal_handler)
+
+    # Run
+    await channel.start()
+    logger.info("Server is running. Send a message to your Telegram bot to get started!")
+
+    try:
+        await stop_event.wait()
+    finally:
+        await channel.stop()
+        logger.info("Server stopped.")
+
+
+def cmd_serve(args: argparse.Namespace) -> None:
+    """Start the SwarmDev server."""
+    config_path = Path(args.config)
+    config = SwarmDevConfig.load(config_path)
+
+    log_level = getattr(logging, config.log_level.upper(), logging.INFO)
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    asyncio.run(_run_server(config))
+
+
+def cmd_init(args: argparse.Namespace) -> None:
+    """Generate a sample config file."""
+    config_path = Path(args.output)
+    if config_path.exists() and not args.force:
+        print(f"❌ {config_path} already exists. Use --force to overwrite.")
+        sys.exit(1)
+
+    config = SwarmDevConfig()
+    config.save(config_path)
+    print(f"✅ Created {config_path}")
+    print("   Edit it with your Telegram bot token, LLM API key, and agent settings.")
+    print("   Then run: swarmdev serve")
+
+
+def cmd_status(args: argparse.Namespace) -> None:
+    """Check component status."""
+    import shutil
+
+    config_path = Path(args.config)
+    config = SwarmDevConfig.load(config_path)
+
+    print("SwarmDev Status")
+    print("=" * 40)
+
+    # Telegram
+    tg_ok = bool(config.telegram.bot_token)
+    print(f"Telegram Bot:  {'✅ configured' if tg_ok else '❌ not configured'}")
+
+    # LLM
+    llm_ok = bool(config.llm.api_key)
+    print(f"LLM ({config.llm.model}): {'✅ configured' if llm_ok else '❌ not configured'}")
+
+    # Agents
+    codex_ok = shutil.which("codex") is not None
+    print(f"Codex CLI:     {'✅ found' if codex_ok else '❌ not found'}")
+
+    for ac in config.agents:
+        print(f"  Agent '{ac.name}' ({ac.agent_type}): {'✅ enabled' if ac.enabled else '⏸ disabled'}")
+
+    print()
+    if tg_ok and llm_ok and codex_ok:
+        print("🚀 All components ready! Run: swarmdev serve")
+    else:
+        print("⚠️  Some components are missing. Fix the issues above.")
+
+
+def main() -> None:
+    """CLI entry point."""
+    parser = argparse.ArgumentParser(
+        prog="swarmdev",
+        description="SwarmDev — Chat-driven multi-agent collaboration development platform",
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # serve
+    p_serve = subparsers.add_parser("serve", help="Start the SwarmDev server")
+    p_serve.add_argument("-c", "--config", default="swarmdev.yaml", help="Config file path")
+    p_serve.set_defaults(func=cmd_serve)
+
+    # init
+    p_init = subparsers.add_parser("init", help="Generate a sample config file")
+    p_init.add_argument("-o", "--output", default="swarmdev.yaml", help="Output file path")
+    p_init.add_argument("--force", action="store_true", help="Overwrite existing file")
+    p_init.set_defaults(func=cmd_init)
+
+    # status
+    p_status = subparsers.add_parser("status", help="Check component status")
+    p_status.add_argument("-c", "--config", default="swarmdev.yaml", help="Config file path")
+    p_status.set_defaults(func=cmd_status)
+
+    args = parser.parse_args()
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
