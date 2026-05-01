@@ -44,8 +44,12 @@ You (natural language)
 ### 1. Install
 
 ```bash
-pip install codeswarm
+pip install git+https://github.com/JX05120LLL/SwarmDev.git
 ```
+
+> **Note:** CodeSwarm is not yet on PyPI. Install directly from GitHub as shown above.
+
+**Prerequisites:** Python 3.10+ and [Codex CLI](https://github.com/openai/codex) installed.
 
 ### 2. Configure your MCP client
 
