@@ -1,0 +1,26 @@
+# SwarmDev 配置文件
+# 复制为 swarmdev.yaml 并填入你的配置
+
+telegram:
+  bot_token: ""                      # Telegram Bot Token (或设置环境变量 TELEGRAM_BOT_TOKEN)
+  allowed_users: []                  # 允许的用户 ID 列表，空列表 = 允许所有人
+
+llm:
+  provider: "openai"                 # LLM 提供商
+  model: "gpt-4o"                    # 模型名称
+  api_key: ""                        # API Key (或设置环境变量 OPENAI_API_KEY)
+  base_url: ""                       # 自定义 API 端点 (可选，用于 OpenAI 兼容的第三方服务)
+  temperature: 0.3                   # 温度 (越低越稳定)
+
+agents:
+  - name: "codex"
+    type: "codex"                    # Agent 类型: codex
+    enabled: true
+
+project:
+  name: "my-project"                # 项目名称
+  root_dir: "."                     # 项目根目录
+
+max_concurrent_agents: 3            # 最大并行 Agent 数
+task_timeout: 600                   # 单个任务超时 (秒)
+log_level: "INFO"                   # 日志级别: DEBUG / INFO / WARNING / ERROR

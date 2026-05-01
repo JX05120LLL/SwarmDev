@@ -25,14 +25,14 @@ async def _run_server(config: SwarmDevConfig) -> None:
     from swarmdev.agents.codex_adapter import CodexAgentAdapter
     from swarmdev.channels.telegram_channel import TelegramChannel
     from swarmdev.orchestrator.decomposer import LLMDecomposer
-    from swarmdev.orchestrator.scheduler import TaskScheduler
+    from swarmdev.orchestrator.parallel_scheduler import ParallelScheduler
 
     # Initialize components
     decomposer = LLMDecomposer(config.llm)
     agents = [CodexAgentAdapter(ac.name) for ac in config.agents if ac.agent_type == "codex" and ac.enabled]
     if not agents:
         agents = [CodexAgentAdapter("codex")]
-    scheduler = TaskScheduler(agents)
+    scheduler = ParallelScheduler(agents, max_concurrent=config.max_concurrent_agents)
 
     # Track active chat for progress updates
     active_chat: dict[str, str] = {}  # user_id -> chat_id
@@ -152,6 +152,88 @@ async def _run_server(config: SwarmDevConfig) -> None:
         logger.info("Server stopped.")
 
 
+async def _run_single_task(config: SwarmDevConfig, request: str) -> None:
+    """Run a single task from the command line (no Telegram needed)."""
+    from swarmdev.agents.codex_adapter import CodexAgentAdapter
+    from swarmdev.orchestrator.decomposer import LLMDecomposer
+    from swarmdev.orchestrator.parallel_scheduler import ParallelScheduler
+
+    decomposer = LLMDecomposer(config.llm)
+    agents = [CodexAgentAdapter(ac.name) for ac in config.agents if ac.agent_type == "codex" and ac.enabled]
+    if not agents:
+        agents = [CodexAgentAdapter("codex")]
+    scheduler = ParallelScheduler(agents, max_concurrent=config.max_concurrent_agents)
+
+    print(f"🔄 正在拆解任务: {request}")
+
+    # Step 1: Decompose
+    try:
+        result = await decomposer.decompose(request)
+    except Exception as exc:
+        print(f"❌ 任务拆解失败: {exc}")
+        return
+
+    if not result.sub_tasks:
+        print("⚠️  没有拆解出子任务，请重新描述需求。")
+        return
+
+    print(f"\n📋 已拆解为 {len(result.sub_tasks)} 个子任务:")
+    for i, st in enumerate(result.sub_tasks):
+        deps = f" (依赖: {st.dependencies})" if st.dependencies else ""
+        print(f"  {i+1}. {st.title} [{st.estimated_complexity}]{deps}")
+
+    # Step 2: Submit
+    scheduler.submit_tasks(result)
+
+    # Set up progress callback
+    def on_progress(update: ProgressUpdate) -> None:
+        for ts in update.tasks_status:
+            status = ts.get("status", "")
+            icon = {"completed": "✅", "running": "🔄", "failed": "❌", "cancelled": "🚫", "pending": "⏳", "ready": "⏳"}.get(status, "❓")
+            print(f"  {icon} {ts.get('title', '?')}")
+
+    scheduler.set_progress_callback(on_progress)
+
+    print(f"\n⏳ 开始执行 (最多 {config.max_concurrent_agents} 个并行)...\n")
+
+    # Step 3: Run
+    results = await scheduler.run()
+
+    # Step 4: Report
+    succeeded = sum(1 for r in results if r.success)
+    failed = sum(1 for r in results if not r.success)
+    total = len(results)
+
+    print(f"\n{'='*40}")
+    print(f"✅ 完成 {succeeded}/{total} 个任务")
+    if failed:
+        print(f"❌ 失败 {failed} 个")
+        for r in results:
+            if not r.success:
+                print(f"  - {r.error or 'unknown error'}")
+
+    print(f"\n📊 详情:")
+    for task in scheduler._tasks:
+        icon = {"completed": "✅", "failed": "❌", "cancelled": "🚫"}.get(task.status.value, "❓")
+        agent = f" [{task.assigned_agent}]" if task.assigned_agent else ""
+        print(f"  {icon} {task.title}{agent}")
+
+
+def cmd_run(args: argparse.Namespace) -> None:
+    """Run a single task from the command line."""
+    config_path = Path(args.config)
+    config = SwarmDevConfig.load(config_path)
+
+    log_level = getattr(logging, config.log_level.upper(), logging.INFO)
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    asyncio.run(_run_single_task(config, args.request))
+
+
 def cmd_serve(args: argparse.Namespace) -> None:
     """Start the SwarmDev server."""
     config_path = Path(args.config)
@@ -220,6 +302,12 @@ def main() -> None:
         description="SwarmDev — Chat-driven multi-agent collaboration development platform",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # run
+    p_run = subparsers.add_parser("run", help="Run a single task from the command line")
+    p_run.add_argument("request", help="Task description in natural language")
+    p_run.add_argument("-c", "--config", default="swarmdev.yaml", help="Config file path")
+    p_run.set_defaults(func=cmd_run)
 
     # serve
     p_serve = subparsers.add_parser("serve", help="Start the SwarmDev server")
