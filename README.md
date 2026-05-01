@@ -1,5 +1,7 @@
 # SwarmDev
 
+English | [中文](README_CN.md)
+
 Chat-driven multi-agent collaboration development platform.
 
 SwarmDev lets you describe software tasks in natural language via chat (Telegram, etc.), automatically decomposes them into sub-tasks, schedules them across AI coding agents (Codex, Claude Code, etc.), and reports progress back to you.
@@ -115,6 +117,28 @@ pytest tests/ -v
 - **Serial execution only** — The scheduler processes one task at a time. Concurrent execution is planned but not yet implemented.
 - **Single agent type** — Only Codex adapter is implemented. Claude Code and OpenClaw adapters are planned.
 - **No authentication** — Telegram `allowed_users` config exists but is not enforced yet.
+
+## Roadmap
+
+- [ ] Parallel scheduler (dependency-graph-based concurrent execution)
+- [ ] Claude Code adapter
+- [ ] OpenClaw adapter
+- [ ] WeChat channel
+- [ ] Feishu (Lark) channel
+- [ ] Web Dashboard
+- [ ] User authentication
+- [ ] Task persistence (SQLite)
+
+## Background
+
+This project was inspired by real-world experience using multiple AI coding tools together:
+
+- **Hermes Agent** — excels at task coordination and tool orchestration
+- **OpenClaw (Zero)** — excels at architecture design and technical decision-making
+- **Codex CLI** — excels at writing high-quality code in parallel
+- **Claude Code** — excels at deep code understanding and refactoring
+
+SwarmDev aims to make these agents truly collaborate rather than work in silos. Issue requirements via chat, have a dedicated orchestrator decompose tasks, dispatch execution, and aggregate results — achieving **1+1>2**.
 
 ## License
 
